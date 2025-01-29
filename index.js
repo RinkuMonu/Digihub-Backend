@@ -41,7 +41,9 @@ app.use("/admin/report", require("./controller/report.controller.js"));
 app.use("/admin/shipping", require("./controller/shipping.controller.js"));
 app.use("/admin/user", require("./controller/user.controller.js"));
 
-// Start the server 
-app.listen(process.env.PORT, () => {
-  console.log(`App is listening at port ${process.env.PORT}`);
+const PORT = process.env.PORT || 5000;  // Default port set
+
+app.listen(PORT, () => {
+  console.log(`App is listening at port ${PORT}`);
 });
+
