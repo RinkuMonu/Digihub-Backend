@@ -61,7 +61,7 @@ router.post("/checkout/:id", async (req, res) => {
     const merchantId = res.req.body.merchantId
 
     const keyIndex = 1;
-    const string = `/pg/v1/status/${merchantId}/${merchantTransactionId}` + "d0d988b4-eb6e-4a37-8ed7-5a73760c09f8";
+    const string = `/pg/v1/status/${merchantId}/${merchantTransactionId} + "d0d988b4-eb6e-4a37-8ed7-5a73760c09f8"`;
     const sha256 = crypto.createHash('sha256').update(string).digest('hex');
     const checksum = sha256 + "###" + keyIndex;
 
@@ -88,6 +88,9 @@ router.post("/checkout/:id", async (req, res) => {
     })
     .catch((error) => {
         console.error(error);
+        return res.status(500).send({
+            message: error.message,
+        })
     });
 });
 
