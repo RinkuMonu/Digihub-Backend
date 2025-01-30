@@ -1,50 +1,94 @@
-const express = require('express');
-const phonepeInstance = require('../phonepe');  // Import PhonePe logic
-const crypto = require("crypto");
-
-const db = require("../db/db");
-
-const dbOrder = db.Order;
-
+const crypto =  require('crypto');
+const express = require("express");
+const axios = require('axios');
 const router = express.Router();
 
-// PhonePe checkout
-router.post('/checkout/phonepe', async (req, res) => {
-    const { amount, orderId } = req.body;
-
-    if (!amount || amount <= 0) {
-        return res.status(400).json({ error: 'Invalid amount. Please provide a valid amount.' });
-    }
-    if (!orderId) {
-        return res.status(400).json({ error: 'Order ID is required.' });
-    }
-
+router.post("/add", async (req, res) => {
     try {
-        const { transactionId, redirectUrl } = await phonepeInstance.initiatePayment(amount, orderId);
-        res.status(200).send({ transactionId, redirectUrl });
+        const merchantTransactionId = req.body.transactionId;
+        const data = {
+            merchantId: "M22104ANSVQVF",
+            merchantTransactionId: merchantTransactionId,
+            merchantUserId: req.body.MUID,
+            name: req.body.name,
+            amount: req.body.amount * 100,
+            redirectUrl: `https://digihub-backend.onrender.com/payment/checkout/${merchantTransactionId}`,
+            redirectMode: 'POST',
+            mobileNumber: req.body.number,
+            paymentInstrument: {
+                type: 'PAY_PAGE'
+            }
+        };
+        const payload = JSON.stringify(data);
+        const payloadMain = Buffer.from(payload).toString('base64');
+        const keyIndex = 1;
+        const string = payloadMain + '/pg/v1/pay' + "d0d988b4-eb6e-4a37-8ed7-5a73760c09f8";
+        const sha256 = crypto.createHash('sha256').update(string).digest('hex');
+        const checksum = sha256 + '###' + keyIndex;
+
+        const prod_URL = "https://api.phonepe.com/apis/hermes/pg/v1/pay"
+        const options = {
+            method: 'POST',
+            url: prod_URL,
+            headers: {
+                accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-VERIFY': checksum
+            },
+            data: {
+                request: payloadMain
+            }
+        };
+
+        axios.request(options).then(function (response) {
+            console.log(response.data)
+            return res.redirect(response.data.data.instrumentResponse.redirectInfo.url)
+        })
+        .catch(function (error) {
+            console.error(error);
+        });
+
     } catch (error) {
-        console.error('Payment initiation failed:', error.message);
-        res.status(500).json({ error: 'Failed to initiate payment. Please try again later.' });
+        res.status(500).send({
+            message: error.message,
+            success: false
+        })
     }
-});
+})
 
-// Payment verification for PhonePe                          
-router.post('/paymentverification/phonepe/:id', async (req, res) => {
-    const { transactionId, paymentId, signature } = req.body;
- 
-    try {
-        const isValid = phonepeInstance.verifySignature(transactionId, paymentId, signature);
+router.post("/checkout/:id", async (req, res) => {
+    const merchantTransactionId = res.req.body.transactionId
+    const merchantId = res.req.body.merchantId
 
-        if (isValid) {
-            await dbOrder.findOneAndUpdate({ _id: req.params.id }, { paymentStatus: "SUCCESS" });
-            return res.redirect(`${process.env.CLIENT_URL}/checkout/ordersuccess?reference=${paymentId}`);
+    const keyIndex = 1;
+    const string = `/pg/v1/status/${merchantId}/${merchantTransactionId}` + "d0d988b4-eb6e-4a37-8ed7-5a73760c09f8";
+    const sha256 = crypto.createHash('sha256').update(string).digest('hex');
+    const checksum = sha256 + "###" + keyIndex;
+
+    const options = {
+    method: 'GET',
+    url: `https://api.phonepe.com/apis/hermes/pg/v1/status/${merchantId}/${merchantTransactionId}`,
+    headers: {
+        accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-VERIFY': checksum,
+        'X-MERCHANT-ID': `${merchantId}`
+    }
+    };
+
+    // CHECK PAYMENT TATUS
+    axios.request(options).then(async(response) => {
+        if (response.data.success === true) {
+            const url = `https://www.fin-unique.com/success`
+            return res.redirect(url)
         } else {
-            res.status(400).json({ error: 'Invalid signature. Payment verification failed.' });
+            const url = `https://www.fin-unique.com/failure`
+            return res.redirect(url)
         }
-    } catch (error) {
-        console.error('Error in payment verification:', error.message);
-        res.status(500).json({ error: 'Payment verification failed. Please try again later.' });
-    }
+    })
+    .catch((error) => {
+        console.error(error);
+    });
 });
 
 module.exports = router;

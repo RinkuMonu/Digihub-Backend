@@ -19,7 +19,7 @@ exports.initiatePayment = async (amount) => {
         transactionId,
         amount: amount * 100, // Convert amount to paise
         currency: 'INR',
-        callbackUrl: `${process.env.BASE_URL}/api/payment/paymentverification`,
+        callbackUrl: `${process.env.BASE_URL}api/payment/paymentverification`,
     };
 
     // Create signature payload
